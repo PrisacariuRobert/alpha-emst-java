@@ -1,0 +1,4 @@
+java EMST input_points2.txt 1.5
+__________________________________
+
+FAIL
