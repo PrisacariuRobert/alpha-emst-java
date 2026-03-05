@@ -13,11 +13,11 @@ The objective is to find a spanning tree $T \subseteq E$ such that:
 If the graph cannot be connected under the constraint $\alpha$, or if the graph is inherently disconnected, the algorithm reports a failure.
 
 ## Implementation Details
-The solution is implemented in Java and utilizes Prim's Algorithm optimized for dense graphs.
+The solution is implemented in Java and utilizes Prim's Algorithm heavily optimized with spatial distribution techniques.
 
--   **Algorithm**: Prim's Algorithm (Adjacency Matrix implicit representation).
--   **Time Complexity**: $\Theta(n^2)$, where $n$ is the number of points. This constitutes an optimal approach for dense graphs where $|E| \approx n^2/2$, avoiding the overhead of logarithmic data structures like binary heaps which are advantageous only in sparse graphs.
--   **Space Complexity**: $\Theta(n)$ for maintaining `minDist` and `parent` arrays.
+-   **Algorithm**: Prim's Algorithm utilizing **Spatial Grid Hashing** and a custom **Index Min Priority Queue** (`IndexMinPQ`).
+-   **Time Complexity**: Expected $\mathcal{O}(n \log n)$. By employing an implicit spatial hash grid scaled tightly to the $\alpha$ constraint (`C = max(alpha, 1.0)`), the algorithm limits distance calculations solely to neighboring geographical cells, aggressively pruning the $n^2$ edge space. Relaxations update the $\mathcal{O}(\log n)$ priority queue, yielding near-optimal logarithmic execution over constrained layouts. Worst-case remains $\mathcal{O}(n^2 \log n)$ on densest allowable sub-graphs bounded rigidly by $\alpha$.
+-   **Space Complexity**: Explicit $\Theta(n)$. Eliminating dense adjacency matrixes and object overhead, the algorithm solely operates on flattened $n$-sized primitive arrays (`int[]`, `long[]`, `boolean[]`) covering spatial grid chaining, parent topology, and priority queue indexing.
 
 ### Tie-Breaking and Determinism
 To ensure deterministic output consistent with rigorous grading standards:

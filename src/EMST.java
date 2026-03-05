@@ -19,7 +19,9 @@ public class EMST {
         }
 
         double distanceTo(Point other) {
-            return Math.sqrt(Math.pow(this.x - other.x, 2) + Math.pow(this.y - other.y, 2));
+            long dx = (long) this.x - other.x;
+            long dy = (long) this.y - other.y;
+            return Math.sqrt(dx * dx + dy * dy);
         }
     }
 
@@ -107,55 +109,107 @@ public class EMST {
 
     private static void solve(List<Point> points, double alpha) {
         int n = points.size();
+        
+        int[] x = new int[n];
+        int[] y = new int[n];
+        for (int i = 0; i < n; i++) {
+            Point p = points.get(i);
+            x[i] = p.x;
+            y[i] = p.y;
+        }
+
+        double C = Math.max(alpha, 1.0);
+        int[] cellX = new int[n];
+        int[] cellY = new int[n];
+        int M = Math.max(n, 1024);
+        int[] head = new int[M];
+        int[] next = new int[n];
+        for (int i = 0; i < M; i++) head[i] = -1;
+
+        for (int i = 0; i < n; i++) {
+            cellX[i] = (int) Math.floor(x[i] / C);
+            cellY[i] = (int) Math.floor(y[i] / C);
+            
+            long h = ((long) cellX[i] * 73856093L) ^ ((long) cellY[i] * 19349663L);
+            int idx = (int) ((h & Long.MAX_VALUE) % M);
+            
+            next[i] = head[idx];
+            head[idx] = i;
+        }
+
         boolean[] inMST = new boolean[n];
-        double[] minDist = new double[n];
+        long[] minDistSq = new long[n];
         int[] parent = new int[n];
 
         for (int i = 0; i < n; i++) {
-            minDist[i] = Double.MAX_VALUE;
+            minDistSq[i] = Long.MAX_VALUE;
             parent[i] = -1;
         }
 
-        minDist[0] = 0;
+        double alphaSq = alpha * alpha;
+        
+        IndexMinPQ pq = new IndexMinPQ(n);
+        pq.insert(0, 0);
+        minDistSq[0] = 0;
         
         List<Edge> mstEdges = new ArrayList<>();
         double totalWeight = 0;
+        int visitedCount = 0;
 
-        for (int i = 0; i < n; i++) {
-            int u = -1;
-            
-            for (int v = 0; v < n; v++) {
-                if (!inMST[v] && (u == -1 || minDist[v] < minDist[u])) {
-                    u = v;
-                }
-            }
-
-            if (u == -1 || minDist[u] == Double.MAX_VALUE) {
-                System.out.println("FAIL");
-                return;
-            }
+        while (!pq.isEmpty()) {
+            int u = pq.delMin();
+            inMST[u] = true;
+            visitedCount++;
             
             if (parent[u] != -1) {
-                if (minDist[u] > alpha) {
+                double dist = Math.sqrt(minDistSq[u]);
+                if (dist > alpha) {
                     System.out.println("FAIL");
                     return;
                 }
-                totalWeight += minDist[u];
-                mstEdges.add(new Edge(points.get(parent[u]), points.get(u), minDist[u]));
+                totalWeight += dist;
+                mstEdges.add(new Edge(points.get(parent[u]), points.get(u), dist));
             }
 
-            inMST[u] = true;
+            int ux = x[u];
+            int uy = y[u];
+            int cx = cellX[u];
+            int cy = cellY[u];
 
-            for (int v = 0; v < n; v++) {
-                if (!inMST[v]) {
-                    double dist = points.get(u).distanceTo(points.get(v));
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    int nx = cx + dx;
+                    int ny = cy + dy;
                     
-                    if (dist <= minDist[v]) { 
-                        minDist[v] = dist;
-                        parent[v] = u;
+                    long h = ((long) nx * 73856093L) ^ ((long) ny * 19349663L);
+                    int idx = (int) ((h & Long.MAX_VALUE) % M);
+                    
+                    for (int v = head[idx]; v != -1; v = next[v]) {
+                        if (!inMST[v] && cellX[v] == nx && cellY[v] == ny) {
+                            long dX = (long) ux - x[v];
+                            long dY = (long) uy - y[v];
+                            long distSq = dX * dX + dY * dY;
+                            
+                            // Check inequality according to specs 
+                            if (distSq <= alphaSq || Math.sqrt(distSq) <= alpha) {
+                                if (distSq < minDistSq[v]) {
+                                    minDistSq[v] = distSq;
+                                    parent[v] = u;
+                                    if (pq.contains(v)) pq.decreaseKey(v, distSq);
+                                    else pq.insert(v, distSq);
+                                } else if (distSq == minDistSq[v]) {
+                                    parent[v] = u;
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+        
+        if (visitedCount < n) {
+            System.out.println("FAIL");
+            return;
         }
 
         System.out.printf("%.10f%n", totalWeight);
@@ -173,6 +227,76 @@ public class EMST {
             for (String s : outputEdges) {
                 System.out.println(s);
             }
+        }
+    }
+
+    static class IndexMinPQ {
+        private int N;
+        private int[] pq;
+        private int[] qp;
+        private long[] keys;
+
+        public IndexMinPQ(int maxN) {
+            keys = new long[maxN];
+            pq = new int[maxN + 1];
+            qp = new int[maxN];
+            for (int i = 0; i < maxN; i++) qp[i] = -1;
+        }
+
+        public boolean isEmpty() { return N == 0; }
+        public boolean contains(int i) { return qp[i] != -1; }
+        
+        public void insert(int i, long key) {
+            N++;
+            qp[i] = N;
+            pq[N] = i;
+            keys[i] = key;
+            swim(N);
+        }
+        
+        public int delMin() {
+            int min = pq[1];
+            exch(1, N--);
+            sink(1);
+            qp[min] = -1;
+            return min;
+        }
+        
+        public void decreaseKey(int i, long key) {
+            keys[i] = key;
+            swim(qp[i]);
+        }
+
+        private void swim(int k) {
+            while (k > 1 && greater(k/2, k)) {
+                exch(k, k/2);
+                k = k/2;
+            }
+        }
+
+        private void sink(int k) {
+            while (2*k <= N) {
+                int j = 2*k;
+                if (j < N && greater(j, j+1)) j++;
+                if (!greater(k, j)) break;
+                exch(k, j);
+                k = j;
+            }
+        }
+
+        private boolean greater(int i, int j) {
+            if (keys[pq[i]] != keys[pq[j]]) {
+                return keys[pq[i]] > keys[pq[j]];
+            }
+            return pq[i] > pq[j];
+        }
+
+        private void exch(int i, int j) {
+            int swap = pq[i];
+            pq[i] = pq[j];
+            pq[j] = swap;
+            qp[pq[i]] = i;
+            qp[pq[j]] = j;
         }
     }
 }
